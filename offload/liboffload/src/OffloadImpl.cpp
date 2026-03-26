@@ -265,7 +265,7 @@ constexpr ol_platform_backend_t pluginNameToBackend(StringRef Name) {
     return OL_PLATFORM_BACKEND_CUDA;
   } else if (Name == "host") {
     return OL_PLATFORM_BACKEND_HOST;
-  } else if (Name == "level_zero") {
+  } else if (Name == "level_zero" || Name == "level_zero_v2") {
     return OL_PLATFORM_BACKEND_LEVEL_ZERO;
   } else {
     return OL_PLATFORM_BACKEND_UNKNOWN;

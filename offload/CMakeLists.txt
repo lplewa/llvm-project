@@ -122,7 +122,7 @@ endif()
 
 set(LIBOMPTARGET_ALL_PLUGIN_TARGETS amdgpu cuda)
 set(LIBOMPTARGET_PLUGINS_TO_BUILD "all" CACHE STRING
-    "Semicolon-separated list of plugins to use: cuda, amdgpu, level_zero, or \"all\".")
+    "Semicolon-separated list of plugins to use: cuda, amdgpu, level_zero, level_zero_v2, or \"all\".")
 
 if(LIBOMPTARGET_PLUGINS_TO_BUILD STREQUAL "all")
   set(LIBOMPTARGET_PLUGINS_TO_BUILD ${LIBOMPTARGET_ALL_PLUGIN_TARGETS})
@@ -158,6 +158,18 @@ endif()
 if("level_zero" IN_LIST LIBOMPTARGET_PLUGINS_TO_BUILD AND
    NOT LIBOMPTARGET_DEP_LEVEL_ZERO_FOUND)
   list(REMOVE_ITEM LIBOMPTARGET_PLUGINS_TO_BUILD "level_zero")
+endif()
+if(NOT (CMAKE_SYSTEM_PROCESSOR MATCHES "(x86_64)|(AMD64)$" AND
+        CMAKE_SYSTEM_NAME MATCHES "Linux|Windows"))
+  if("level_zero_v2" IN_LIST LIBOMPTARGET_PLUGINS_TO_BUILD)
+    message(STATUS "Not building Level Zero V2 plugin: it is only supported on "
+                   "Linux/Windows x86_64 hosts")
+    list(REMOVE_ITEM LIBOMPTARGET_PLUGINS_TO_BUILD "level_zero_v2")
+  endif()
+endif()
+if("level_zero_v2" IN_LIST LIBOMPTARGET_PLUGINS_TO_BUILD AND
+   NOT LIBOMPTARGET_DEP_LEVEL_ZERO_FOUND)
+  list(REMOVE_ITEM LIBOMPTARGET_PLUGINS_TO_BUILD "level_zero_v2")
 endif()
 message(STATUS "Building the offload library with support for "
                "the \"${LIBOMPTARGET_PLUGINS_TO_BUILD}\" plugins")

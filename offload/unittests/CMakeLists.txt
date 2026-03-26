@@ -103,7 +103,8 @@ function(add_offload_test_device_code test_filename test_name)
   endif()
 
   # Try to build with support for Level Zero SPIRV devices.
-  if("level_zero" IN_LIST LIBOMPTARGET_PLUGINS_TO_BUILD)
+  if("level_zero" IN_LIST LIBOMPTARGET_PLUGINS_TO_BUILD OR
+     "level_zero_v2" IN_LIST LIBOMPTARGET_PLUGINS_TO_BUILD)
     set(spirv_compile_flags ${OFFLOAD_TESTS_UNPARSED_ARGUMENTS})
     set(output_file "${CMAKE_CURRENT_BINARY_DIR}/${test_name}.spirv64.bin")
     # TODO: Building for specific devices is not implemented yet.
