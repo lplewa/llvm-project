@@ -395,14 +395,14 @@ Error L0KernelTy::setKernelGroups(L0DeviceTy &l0Device, L0LaunchEnvTy &KEnv,
                                   uint32_t NumThreads[3],
                                   uint32_t NumBlocks[3]) const {
 
-  if (KernelEnvironment.Configuration.ExecMode != OMP_TGT_EXEC_MODE_BARE) {
-    // For non-bare mode, the groups are already set in the launch.
-    KEnv.GroupCounts = {NumBlocks[0], NumBlocks[1], NumBlocks[2]};
-    CALL_ZE_RET_ERROR(zeKernelSetGroupSize, getZeKernel(), NumThreads[0],
-                      NumThreads[1], NumThreads[2]);
-    return Plugin::success();
-  }
-
+  //  if (KernelEnvironment.Configuration.ExecMode != OMP_TGT_EXEC_MODE_BARE) {
+  // For non-bare mode, the groups are already set in the launch.
+  KEnv.GroupCounts = {NumBlocks[0], NumBlocks[1], NumBlocks[2]};
+  CALL_ZE_RET_ERROR(zeKernelSetGroupSize, getZeKernel(), NumThreads[0],
+                    NumThreads[1], NumThreads[2]);
+  return Plugin::success();
+  //  }
+#if 0
   int32_t NumTeams = NumBlocks[0];
   int32_t ThreadLimit = NumThreads[0];
   if (NumTeams < 0)
@@ -438,6 +438,7 @@ Error L0KernelTy::setKernelGroups(L0DeviceTy &l0Device, L0LaunchEnvTy &KEnv,
   }
 
   return Plugin::success();
+#endif
 }
 
 Error L0KernelTy::setIndirectFlags(L0DeviceTy &l0Device,
