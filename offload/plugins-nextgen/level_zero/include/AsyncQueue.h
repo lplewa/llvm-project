@@ -21,6 +21,10 @@ struct L0AsyncQueueTy {
   virtual Error appendKernelLaunch(ze_kernel_handle_t Kernel,
                                    const ze_group_count_t &Groups,
                                    ze_event_handle_t SignalEvent) = 0;
+  virtual Error appendKernelLaunchWithArguments(
+      ze_kernel_handle_t Kernel, const ze_group_count_t &Groups,
+      const ze_group_size_t &GroupSizes, void **ArgPtrs,
+      ze_event_handle_t SignalEvent) = 0;
   virtual Error appendMemCopy(void *Dst, const void *Src, size_t Size,
                               ze_event_handle_t SignalEvent) = 0;
   virtual Error appendMemFill(void *Ptr, const void *Pattern,

@@ -282,6 +282,23 @@ static Error submitKernelLaunch(L0DeviceTy &l0Device,
   return Plugin::success();
 }
 
+static Error submitKernelLaunchWithPtrArgs(L0DeviceTy &l0Device,
+                                           ze_kernel_handle_t zeKernel,
+                                           L0LaunchEnvTy &KEnv,
+                                           const ze_group_count_t &GroupCounts,
+                                           const ze_group_size_t &GroupSizes,
+                                           void **ArgPtrs) {
+  auto Err = KEnv.AsyncQueue->appendKernelLaunchWithArguments(
+      zeKernel, GroupCounts, GroupSizes, ArgPtrs, nullptr);
+  KEnv.Lock.unlock();
+  if (Err)
+    return Err;
+  INFO(OMP_INFOTYPE_PLUGIN_KERNEL, l0Device.getDeviceId(),
+       "Submitted kernel " DPxMOD " to device %s\n", DPxPTR(zeKernel),
+       l0Device.getZeIdCStr());
+  return Plugin::success();
+}
+
 Error L0KernelTy::setKernelGroups(L0DeviceTy &l0Device, L0LaunchEnvTy &KEnv,
                                   uint32_t NumThreads[3],
                                   uint32_t NumBlocks[3]) const {
@@ -384,33 +401,57 @@ Error L0KernelTy::launchImpl(GenericDeviceTy &GenericDevice,
   // Protect from kernel preparation to submission as kernels are shared.
   KEnv.Lock.lock();
 
-  if (auto Err = setKernelGroups(l0Device, KEnv, NumThreads, NumBlocks))
-    return Err;
+  // With pointer-array arguments, zeCommandListAppendLaunchKernelWithArguments
+  // folds group-size, per-argument set, and launch into a single call.
+  const bool IsPtrArgs = KernelArgs.Flags.IsPtrArgs;
+  ze_group_count_t PtrArgsGroupCounts{};
+  ze_group_size_t PtrArgsGroupSizes{};
+  if (IsPtrArgs) {
+    PtrArgsGroupCounts = {NumBlocks[0], NumBlocks[1], NumBlocks[2]};
+    PtrArgsGroupSizes = {NumThreads[0], NumThreads[1], NumThreads[2]};
+    INFO(OMP_INFOTYPE_PLUGIN_KERNEL, DeviceId,
+         "Team sizes = {%" PRIu32 ", %" PRIu32 ", %" PRIu32 "}\n",
+         PtrArgsGroupSizes.groupSizeX, PtrArgsGroupSizes.groupSizeY,
+         PtrArgsGroupSizes.groupSizeZ);
+    INFO(OMP_INFOTYPE_PLUGIN_KERNEL, DeviceId,
+         "Number of teams = {%" PRIu32 ", %" PRIu32 ", %" PRIu32 "}\n",
+         PtrArgsGroupCounts.groupCountX, PtrArgsGroupCounts.groupCountY,
+         PtrArgsGroupCounts.groupCountZ);
+  } else {
+    if (auto Err = setKernelGroups(l0Device, KEnv, NumThreads, NumBlocks))
+      return Err;
 
-  // Set kernel arguments.
-  uint32_t NumKernelArgs = KernelPR.NumKernelArgs;
-  if (NumKernelArgs > 0) {
-    if (!KernelPR.ArgSizes)
-      return Plugin::error(ErrorCode::INVALID_ARGUMENT,
-                           "level zero plugin requires kernel argument sizes.");
-    // Use sizes from kernel properties.
-    // TODO: This is temporary workaround it will not work if there is
-    // padding/alignment between arguments.
-    char *Arg = static_cast<char *>(LaunchParams.Data);
-    for (uint32_t I = 0; I < NumKernelArgs; I++) {
-      uint32_t ArgSize = KernelPR.ArgSizes[I];
-      CALL_ZE_RET_ERROR(zeKernelSetArgumentValue, zeKernel, I, ArgSize, Arg);
+    // Set kernel arguments.
+    uint32_t NumKernelArgs = KernelPR.NumKernelArgs;
+    if (NumKernelArgs > 0) {
+      if (!KernelPR.ArgSizes)
+        return Plugin::error(
+            ErrorCode::INVALID_ARGUMENT,
+            "level zero plugin requires kernel argument sizes.");
+      // Use sizes from kernel properties.
+      // TODO: This is temporary workaround it will not work if there is
+      // padding/alignment between arguments.
+      char *Arg = static_cast<char *>(LaunchParams.Data);
+      for (uint32_t I = 0; I < NumKernelArgs; I++) {
+        uint32_t ArgSize = KernelPR.ArgSizes[I];
+        CALL_ZE_RET_ERROR(zeKernelSetArgumentValue, zeKernel, I, ArgSize, Arg);
 
-      INFO(OMP_INFOTYPE_PLUGIN_KERNEL, DeviceId,
-           "Kernel Pointer argument %" PRIu32 " (value: " DPxMOD
-           ") was set successfully for device %s.\n",
-           I, DPxPTR(Arg), IdStr);
-      Arg += ArgSize;
+        INFO(OMP_INFOTYPE_PLUGIN_KERNEL, DeviceId,
+             "Kernel Pointer argument %" PRIu32 " (value: " DPxMOD
+             ") was set successfully for device %s.\n",
+             I, DPxPTR(Arg), IdStr);
+        Arg += ArgSize;
+      }
     }
   }
 
   if (auto Err = setIndirectFlags(l0Device, KEnv))
     return Err;
+
+  if (IsPtrArgs)
+    return submitKernelLaunchWithPtrArgs(l0Device, zeKernel, KEnv,
+                                         PtrArgsGroupCounts, PtrArgsGroupSizes,
+                                         KernelArgs.ArgPtrs);
 
   return submitKernelLaunch(l0Device, zeKernel, KEnv);
 }

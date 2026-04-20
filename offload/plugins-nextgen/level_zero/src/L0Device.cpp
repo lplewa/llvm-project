@@ -251,6 +251,16 @@ public:
     return Plugin::success();
   }
 
+  Error appendKernelLaunchWithArguments(
+      ze_kernel_handle_t Kernel, const ze_group_count_t &Groups,
+      const ze_group_size_t &GroupSizes, void **ArgPtrs,
+      ze_event_handle_t SignalEvent) override {
+    CALL_ZE_RET_ERROR(zeCommandListAppendLaunchKernelWithArguments, ImmCmdList,
+                      Kernel, Groups, GroupSizes, ArgPtrs, nullptr, SignalEvent,
+                      0, nullptr);
+    return Plugin::success();
+  }
+
   Error appendMemCopy(void *Dst, const void *Src, size_t Size,
                       ze_event_handle_t SignalEvent) override {
     CALL_ZE_RET_ERROR(zeCommandListAppendMemoryCopy, ImmCmdList, Dst, Src,

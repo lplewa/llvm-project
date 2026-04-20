@@ -41,6 +41,29 @@ def olLaunchKernel : Function {
     ];
 }
 
+def olLaunchKernelWithPtrArgs : Function {
+    let desc = "Enqueue a kernel launch with arguments specified as an array of pointers and sizes.";
+    let details = [
+        "If a queue is not specified, kernel execution happens synchronously",
+        "Each element of ArgPtrs points to the value of the corresponding kernel argument",
+        "Each element of ArgSizes specifies the size in bytes of the corresponding argument",
+        "ArgPtrs and ArgSizes must both be NULL (no arguments) or both be non-NULL"
+    ];
+    let params = [
+        Param<"ol_queue_handle_t", "Queue", "handle of the queue", PARAM_IN_OPTIONAL>,
+        Param<"ol_device_handle_t", "Device", "handle of the device to execute on", PARAM_IN>,
+        Param<"ol_symbol_handle_t", "Kernel", "handle of the kernel", PARAM_IN>,
+        Param<"void**", "ArgPtrs", "array of pointers, each pointing to an argument value", PARAM_IN_OPTIONAL>,
+        Param<"const size_t*", "ArgSizes", "array of argument sizes", PARAM_IN_OPTIONAL>,
+        Param<"const ol_kernel_launch_size_args_t*", "LaunchSizeArgs", "pointer to the struct containing launch size parameters", PARAM_IN>,
+    ];
+    let returns = [
+        Return<"OL_ERRC_INVALID_ARGUMENT", ["`(ArgPtrs == NULL) != (ArgSizes == NULL)`"]>,
+        Return<"OL_ERRC_INVALID_DEVICE", ["If Queue is non-null but does not belong to Device"]>,
+        Return<"OL_ERRC_SYMBOL_KIND", ["The provided symbol is not a kernel"]>,
+    ];
+}
+
 def olCalculateOptimalOccupancy : Function {
     let desc = "Given dynamic memory size, query the device for a workgroup size that will result in optimal occupancy.";
     let details = [

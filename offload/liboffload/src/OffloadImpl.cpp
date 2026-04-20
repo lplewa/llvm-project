@@ -1049,10 +1049,11 @@ Error olCalculateOptimalOccupancy_impl(ol_device_handle_t Device,
   return Error::success();
 }
 
-Error olLaunchKernel_impl(ol_queue_handle_t Queue, ol_device_handle_t Device,
-                          ol_symbol_handle_t Kernel, const void *ArgumentsData,
-                          size_t ArgumentsSize,
-                          const ol_kernel_launch_size_args_t *LaunchSizeArgs) {
+static Error
+launchKernelCommon(ol_queue_handle_t Queue, ol_device_handle_t Device,
+                   ol_symbol_handle_t Kernel,
+                   const ol_kernel_launch_size_args_t *LaunchSizeArgs,
+                   KernelArgsTy &LaunchArgs) {
   auto *DeviceImpl = Device->Device;
   if (Queue && Device != Queue->Device) {
     return createOffloadError(
@@ -1064,9 +1065,6 @@ Error olLaunchKernel_impl(ol_queue_handle_t Queue, ol_device_handle_t Device,
     return createOffloadError(ErrorCode::SYMBOL_KIND,
                               "provided symbol is not a kernel");
 
-  auto *QueueImpl = Queue ? Queue->AsyncInfo : nullptr;
-  AsyncInfoWrapperTy AsyncInfoWrapper(*DeviceImpl, QueueImpl);
-  KernelArgsTy LaunchArgs{};
   LaunchArgs.NumTeams[0] = LaunchSizeArgs->NumGroups.x;
   LaunchArgs.NumTeams[1] = LaunchSizeArgs->NumGroups.y;
   LaunchArgs.NumTeams[2] = LaunchSizeArgs->NumGroups.z;
@@ -1075,12 +1073,8 @@ Error olLaunchKernel_impl(ol_queue_handle_t Queue, ol_device_handle_t Device,
   LaunchArgs.ThreadLimit[2] = LaunchSizeArgs->GroupSize.z;
   LaunchArgs.DynCGroupMem = LaunchSizeArgs->DynSharedMemory;
 
-  KernelLaunchParamsTy Params;
-  Params.Data = const_cast<void *>(ArgumentsData);
-  Params.Size = ArgumentsSize;
-  LaunchArgs.ArgPtrs = reinterpret_cast<void **>(&Params);
-  // Don't do anything with pointer indirection; use arg data as-is
-  LaunchArgs.Flags.IsCUDA = true;
+  auto *QueueImpl = Queue ? Queue->AsyncInfo : nullptr;
+  AsyncInfoWrapperTy AsyncInfoWrapper(*DeviceImpl, QueueImpl);
 
   auto *KernelImpl = std::get<GenericKernelTy *>(Kernel->PluginImpl);
   auto Err = KernelImpl->launch(*DeviceImpl, LaunchArgs.ArgPtrs, nullptr,
@@ -1091,6 +1085,35 @@ Error olLaunchKernel_impl(ol_queue_handle_t Queue, ol_device_handle_t Device,
     return Err;
 
   return Error::success();
+}
+
+Error olLaunchKernel_impl(ol_queue_handle_t Queue, ol_device_handle_t Device,
+                          ol_symbol_handle_t Kernel, const void *ArgumentsData,
+                          size_t ArgumentsSize,
+                          const ol_kernel_launch_size_args_t *LaunchSizeArgs) {
+  KernelArgsTy LaunchArgs{};
+  KernelLaunchParamsTy Params;
+  Params.Data = const_cast<void *>(ArgumentsData);
+  Params.Size = ArgumentsSize;
+  LaunchArgs.ArgPtrs = reinterpret_cast<void **>(&Params);
+  // Don't do anything with pointer indirection; use arg data as-is
+  LaunchArgs.Flags.IsCUDA = true;
+
+  return launchKernelCommon(Queue, Device, Kernel, LaunchSizeArgs, LaunchArgs);
+}
+
+Error olLaunchKernelWithPtrArgs_impl(
+    ol_queue_handle_t Queue, ol_device_handle_t Device,
+    ol_symbol_handle_t Kernel, void **ArgPtrs, const size_t *ArgSizes,
+    const ol_kernel_launch_size_args_t *LaunchSizeArgs) {
+  KernelArgsTy LaunchArgs{};
+  LaunchArgs.ArgPtrs = ArgPtrs;
+  // TODO: Either change ArgSizes to const size_t * or add a new variable.
+  LaunchArgs.ArgSizes =
+      reinterpret_cast<int64_t *>(const_cast<size_t *>(ArgSizes));
+  LaunchArgs.Flags.IsPtrArgs = 1;
+
+  return launchKernelCommon(Queue, Device, Kernel, LaunchSizeArgs, LaunchArgs);
 }
 
 Error olGetSymbol_impl(ol_program_handle_t Program, const char *Name,

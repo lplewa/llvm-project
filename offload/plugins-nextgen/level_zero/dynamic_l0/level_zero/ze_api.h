@@ -490,6 +490,12 @@ typedef struct _ze_group_count_t {
   uint32_t groupCountZ;
 } ze_group_count_t;
 
+typedef struct _ze_group_size_t {
+  uint32_t groupSizeX;
+  uint32_t groupSizeY;
+  uint32_t groupSizeZ;
+} ze_group_size_t;
+
 /* Memory allocation properties */
 typedef struct _ze_memory_allocation_properties_t {
   ze_structure_type_t stype;
@@ -731,6 +737,12 @@ ZE_APIEXPORT ze_result_t ZE_APICALL zeCommandListAppendLaunchKernel(
 ZE_APIEXPORT ze_result_t ZE_APICALL zeCommandListAppendLaunchCooperativeKernel(
     ze_command_list_handle_t hCommandList, ze_kernel_handle_t hKernel,
     const ze_group_count_t *pLaunchFuncArgs, ze_event_handle_t hSignalEvent,
+    uint32_t numWaitEvents, ze_event_handle_t *phWaitEvents);
+ZE_APIEXPORT ze_result_t ZE_APICALL
+zeCommandListAppendLaunchKernelWithArguments(
+    ze_command_list_handle_t hCommandList, ze_kernel_handle_t hKernel,
+    const ze_group_count_t groupCounts, const ze_group_size_t groupSizes,
+    void **pArguments, const void *pNext, ze_event_handle_t hSignalEvent,
     uint32_t numWaitEvents, ze_event_handle_t *phWaitEvents);
 ZE_APIEXPORT ze_result_t ZE_APICALL zeCommandListAppendMemoryCopy(
     ze_command_list_handle_t hCommandList, void *dstptr, const void *srcptr,

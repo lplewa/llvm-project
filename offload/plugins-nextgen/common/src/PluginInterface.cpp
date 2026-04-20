@@ -273,13 +273,14 @@ Error GenericKernelTy::launch(GenericDeviceTy &GenericDevice, void **ArgPtrs,
   if (!KernelLaunchEnvOrErr)
     return KernelLaunchEnvOrErr.takeError();
 
-  KernelLaunchParamsTy LaunchParams;
-
   // Kernel languages don't use indirection.
+  // IsPtrArgs bypasses LaunchParms entirely,
+  // plugins read KernelArgs.ArgPtrs/ArgSizes directly.
+  KernelLaunchParamsTy LaunchParams;
   if (KernelArgs.Flags.IsCUDA) {
     LaunchParams =
         *reinterpret_cast<KernelLaunchParamsTy *>(KernelArgs.ArgPtrs);
-  } else {
+  } else if (!KernelArgs.Flags.IsPtrArgs) {
     LaunchParams =
         prepareArgs(GenericDevice, ArgPtrs, ArgOffsets, KernelArgs.NumArgs,
                     Args, Ptrs, *KernelLaunchEnvOrErr, KernelArgs.Version);

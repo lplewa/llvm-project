@@ -137,16 +137,26 @@ TEST_P(olLaunchKernelNoArgsTest, Success) {
 }
 
 TEST_P(olLaunchKernelMultiArgsTest, Success) {
+  void *Mem;
+  ASSERT_SUCCESS(olMemAlloc(Device, OL_ALLOC_TYPE_MANAGED,
+                            LaunchArgs.GroupSize.x * sizeof(int), &Mem));
+
   struct {
     char A;
     int *B;
     short C;
-  } Args{0, nullptr, 0};
+  } Args{3, (int *)Mem, 5};
 
   ASSERT_SUCCESS(
       olLaunchKernel(Queue, Device, Kernel, &Args, sizeof(Args), &LaunchArgs));
 
   ASSERT_SUCCESS(olSyncQueue(Queue));
+
+  int *Data = (int *)Mem;
+  for (uint32_t i = 0; i < LaunchArgs.GroupSize.x; i++)
+    ASSERT_EQ(Data[i], Args.A + Args.C + static_cast<int>(i));
+
+  ASSERT_SUCCESS(olMemFree(Mem));
 }
 
 TEST_P(olLaunchKernelFooTest, SuccessSynchronous) {
