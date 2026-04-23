@@ -82,17 +82,15 @@ struct KernelPropertiesTy {
 };
 
 struct L0LaunchEnvTy {
-  bool IsAsync;
-  AsyncQueueTy *AsyncQueue;
+  L0AsyncQueueTy *AsyncQueue;
   ze_group_count_t GroupCounts = {0, 0, 0};
   KernelPropertiesTy &KernelPR;
   bool HalfNumThreads = false;
   bool IsTeamsNDRange = false;
   std::unique_lock<std::mutex> Lock;
 
-  L0LaunchEnvTy(bool IsAsync, AsyncQueueTy *AsyncQueue,
-                KernelPropertiesTy &KernelPR)
-      : IsAsync(IsAsync), AsyncQueue(AsyncQueue), KernelPR(KernelPR),
+  L0LaunchEnvTy(L0AsyncQueueTy *AsyncQueue, KernelPropertiesTy &KernelPR)
+      : AsyncQueue(AsyncQueue), KernelPR(KernelPR),
         Lock(KernelPR.Mtx, std::defer_lock) {}
 };
 
