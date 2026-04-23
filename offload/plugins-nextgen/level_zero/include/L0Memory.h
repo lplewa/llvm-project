@@ -422,45 +422,6 @@ public:
   }
 }; /// MemAllocatorTy
 
-// Simple generic wrapper to reuse objects
-// objects must have zero argument accessible constructor.
-template <class ObjTy> class ObjPool {
-  // Protection.
-  std::unique_ptr<std::mutex> Mtx;
-  // List of Objects.
-  std::list<ObjTy *> Objects;
-
-public:
-  ObjPool() { Mtx.reset(new std::mutex); }
-
-  ObjPool(const ObjPool &) = delete;
-  ObjPool(ObjPool &) = delete;
-  ObjPool &operator=(const ObjPool &) = delete;
-  ObjPool &operator=(const ObjPool &&) = delete;
-
-  ObjTy *get() {
-    if (!Objects.empty()) {
-      std::lock_guard<std::mutex> Lock(*Mtx);
-      if (!Objects.empty()) {
-        const auto Ret = Objects.back();
-        Objects.pop_back();
-        return Ret;
-      }
-    }
-    return new ObjTy();
-  }
-
-  void release(ObjTy *obj) {
-    std::lock_guard<std::mutex> Lock(*Mtx);
-    Objects.push_back(obj);
-  }
-
-  ~ObjPool() {
-    for (auto Object : Objects)
-      delete Object;
-  }
-};
-
 /// Common event pool used in the plugin. This event pool assumes all events
 /// from the pool are host-visible and use the same event pool flag.
 class EventPoolTy {
@@ -511,92 +472,6 @@ public:
 
   /// Return an event to the pool.
   Error releaseEvent(ze_event_handle_t Event, L0DeviceTy &Device);
-};
-
-/// Staging buffer.
-/// A single staging buffer is not enough when batching is enabled since there
-/// can be multiple pending copy operations.
-class StagingBufferTy {
-  /// Context for L0 calls.
-  ze_context_handle_t Context = nullptr;
-  /// Max allowed size for staging buffer.
-  size_t Size = L0StagingBufferSize;
-  /// Number of buffers allocated together.
-  size_t Count = L0StagingBufferCount;
-  /// Buffers increasing by Count if a new buffer is required.
-  llvm::SmallVector<void *> Buffers;
-  /// Next buffer location in the buffers.
-  size_t Offset = 0;
-
-  Expected<void *> addBuffers() {
-    ze_host_mem_alloc_desc_t AllocDesc{ZE_STRUCTURE_TYPE_HOST_MEM_ALLOC_DESC,
-                                       nullptr, 0};
-    void *Ret = nullptr;
-    size_t AllocSize = Size * Count;
-    CALL_ZE_RET_ERROR(zeMemAllocHost, Context, &AllocDesc, AllocSize,
-                      L0DefaultAlignment, &Ret);
-    Buffers.push_back(Ret);
-    return Ret;
-  }
-
-public:
-  StagingBufferTy() = default;
-  StagingBufferTy(const StagingBufferTy &) = delete;
-  StagingBufferTy(StagingBufferTy &&) = delete;
-  StagingBufferTy &operator=(const StagingBufferTy &) = delete;
-  StagingBufferTy &operator=(const StagingBufferTy &&) = delete;
-  ~StagingBufferTy() = default;
-
-  Error clear() {
-    for (auto Ptr : Buffers)
-      CALL_ZE_RET_ERROR(zeMemFree, Context, Ptr);
-    Context = nullptr;
-    return Plugin::success();
-  }
-
-  bool initialized() const { return Context != nullptr; }
-
-  void init(ze_context_handle_t ContextIn, size_t SizeIn, size_t CountIn) {
-    Context = ContextIn;
-    Size = SizeIn;
-    Count = CountIn;
-  }
-
-  void reset() { Offset = 0; }
-
-  /// Always return the first buffer.
-  Expected<void *> get() {
-    if (Size == 0 || Count == 0)
-      return nullptr;
-    return Buffers.empty() ? addBuffers() : Buffers.front();
-  }
-
-  /// Return the next available buffer.
-  Expected<void *> getNext() {
-    void *Ret = nullptr;
-    if (Size == 0 || Count == 0)
-      return Ret;
-
-    size_t AllocSize = Size * Count;
-    bool NeedToGrow = Buffers.empty() || Offset >= Buffers.size() * AllocSize;
-    if (NeedToGrow) {
-      auto PtrOrErr = addBuffers();
-      if (!PtrOrErr)
-        return PtrOrErr.takeError();
-      Ret = *PtrOrErr;
-    } else
-      Ret = reinterpret_cast<void *>(
-          reinterpret_cast<uintptr_t>(Buffers.back()) + (Offset % AllocSize));
-
-    if (!Ret)
-      return nullptr;
-
-    Offset += Size;
-    return Ret;
-  }
-
-  /// Return either a fixed buffer or next buffer.
-  Expected<void *> get(bool Next) { return Next ? getNext() : get(); }
 };
 
 } // namespace llvm::omp::target::plugin

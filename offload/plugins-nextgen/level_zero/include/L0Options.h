@@ -20,8 +20,6 @@
 #include "L0Defs.h"
 
 namespace llvm::omp::target::plugin {
-/// Command submission mode.
-enum class CommandModeTy { Sync = 0, Async, AsyncOrdered };
 
 /// Specialization constants used for a module compilation.
 class SpecConstantsTy {
@@ -70,12 +68,6 @@ struct L0OptionFlagsTy {
 struct L0OptionsTy {
   /// Binary flags.
   L0OptionFlagsTy Flags;
-
-  /// Staging buffer size.
-  size_t StagingBufferSize = L0StagingBufferSize;
-
-  /// Staging buffer count.
-  size_t StagingBufferCount = L0StagingBufferCount;
 
   struct MemPoolConfigTy {
     bool Use;
@@ -127,11 +119,6 @@ struct L0OptionsTy {
 
   /// Spec constants used for all modules.
   SpecConstantsTy CommonSpecConstants;
-
-  /// Command execution mode.
-  /// Whether the runtime uses asynchronous mode or not depends on the type of
-  /// devices and whether immediate command list is fully enabled.
-  CommandModeTy CommandMode = CommandModeTy::Async;
 
   /// Controls if we need to reduce available HW threads. We need this
   /// adjustment on XeHPG when Level Zero debug is enabled

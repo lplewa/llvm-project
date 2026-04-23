@@ -9,6 +9,7 @@ endif()
 add_target_library(omptarget.rtl.level_zero LEVEL_ZERO)
 
 set(LEVEL_ZERO_SRC_FILES
+  src/L0CmdListManager.cpp
   src/L0Context.cpp
   src/L0Device.cpp
   src/L0Kernel.cpp

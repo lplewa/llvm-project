@@ -5,40 +5,34 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-//
-// Async Queue wrapper for Level Zero.
-//
-//===----------------------------------------------------------------------===//
 
 #ifndef OPENMP_LIBOMPTARGET_PLUGINS_NEXTGEN_LEVEL_ZERO_ASYNCQUEUE_H
 #define OPENMP_LIBOMPTARGET_PLUGINS_NEXTGEN_LEVEL_ZERO_ASYNCQUEUE_H
 
-#include <tuple>
+#include <level_zero/ze_api.h>
 
-#include "L0Memory.h"
+#include "L0Defs.h"
 
 namespace llvm::omp::target::plugin {
 
-/// Abstract queue that supports asynchronous command submission.
-struct AsyncQueueTy {
-  /// List of events attached to submitted commands.
-  llvm::SmallVector<ze_event_handle_t> WaitEvents;
-  /// Pending staging buffer to host copies.
-  llvm::SmallVector<std::tuple<void *, void *, size_t>> H2MList;
-  /// Pending USM memory copy commands that must wait for kernel completion.
-  llvm::SmallVector<std::tuple<const void *, void *, size_t>> USM2MList;
-  /// Kernel event not signaled.
-  ze_event_handle_t KernelEvent = nullptr;
-  /// Clear data.
-  void reset() {
-    WaitEvents.clear();
-    H2MList.clear();
-    USM2MList.clear();
-    KernelEvent = nullptr;
-  }
+/// Abstract queue backing a libomptarget __tgt_async_info.
+struct L0AsyncQueueTy {
+  virtual ~L0AsyncQueueTy() = default;
+
+  virtual Error appendKernelLaunch(ze_kernel_handle_t Kernel,
+                                   const ze_group_count_t &Groups,
+                                   ze_event_handle_t SignalEvent) = 0;
+  virtual Error appendMemCopy(void *Dst, const void *Src, size_t Size,
+                              ze_event_handle_t SignalEvent) = 0;
+  virtual Error appendMemFill(void *Ptr, const void *Pattern,
+                              size_t PatternSize, size_t Size,
+                              ze_event_handle_t SignalEvent) = 0;
+  virtual Error appendSignalEvent(ze_event_handle_t Event) = 0;
+  virtual Error appendWaitOnEvent(ze_event_handle_t Event) = 0;
+  virtual Error hostSynchronize(uint64_t TimeoutNs) = 0;
+  virtual Expected<bool> isComplete() = 0;
 };
 
-using AsyncQueuePoolTy = ObjPool<AsyncQueueTy>;
-
 } // namespace llvm::omp::target::plugin
+
 #endif // OPENMP_LIBOMPTARGET_PLUGINS_NEXTGEN_LEVEL_ZERO_ASYNCQUEUE_H
