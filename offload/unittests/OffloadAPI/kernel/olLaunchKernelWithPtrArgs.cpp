@@ -58,6 +58,7 @@ struct LaunchKernelPtrArgsSingleTestBase : LaunchKernelPtrArgsTestBase {
 PTRARGS_KERNEL_TEST(Foo, foo)
 PTRARGS_KERNEL_TEST(NoArgs, noargs)
 PTRARGS_KERNEL_TEST(MultiArgs, multiargs)
+PTRARGS_KERNEL_TEST(Composite, composite)
 PTRARGS_KERNEL_TEST(Byte, byte)
 PTRARGS_KERNEL_TEST(LocalMem, localmem)
 
@@ -156,6 +157,35 @@ TEST_P(olLaunchKernelWithPtrArgsMultiArgsTest, Success) {
   int *Data = (int *)Mem;
   for (uint32_t i = 0; i < LaunchArgs.GroupSize.x; i++)
     ASSERT_EQ(Data[i], A + C + static_cast<int>(i));
+
+  ASSERT_SUCCESS(olMemFree(Mem));
+}
+
+struct Foo {
+  int a;
+  int b;
+};
+
+TEST_P(olLaunchKernelWithPtrArgsCompositeTest, Success) {
+  void *Mem;
+  ASSERT_SUCCESS(olMemAlloc(Device, OL_ALLOC_TYPE_MANAGED,
+                            LaunchArgs.GroupSize.x * sizeof(uint32_t), &Mem));
+
+  uint32_t N = 1;
+  Foo F{2, 3};
+  uint32_t *Out = (uint32_t *)Mem;
+
+  void *ArgPtrs[] = {&N, &F, &Out};
+  size_t ArgSizes[] = {sizeof(N), sizeof(F), sizeof(Out)};
+
+  ASSERT_SUCCESS(olLaunchKernelWithPtrArgs(Queue, Device, Kernel, ArgPtrs,
+                                           ArgSizes, &LaunchArgs));
+
+  ASSERT_SUCCESS(olSyncQueue(Queue));
+
+  uint32_t *Data = (uint32_t *)Mem;
+  for (uint32_t i = 0; i < LaunchArgs.GroupSize.x; i++)
+    ASSERT_EQ(Data[i], N + F.a + F.b + i);
 
   ASSERT_SUCCESS(olMemFree(Mem));
 }

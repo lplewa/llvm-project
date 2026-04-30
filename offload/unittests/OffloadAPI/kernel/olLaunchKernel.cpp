@@ -56,6 +56,7 @@ struct LaunchSingleKernelTestBase : LaunchKernelTestBase {
 KERNEL_TEST(Foo, foo)
 KERNEL_TEST(NoArgs, noargs)
 KERNEL_TEST(MultiArgs, multiargs)
+KERNEL_TEST(Composite, composite)
 KERNEL_TEST(Byte, byte)
 KERNEL_TEST(LocalMem, localmem)
 KERNEL_TEST(LocalMemReduction, localmem_reduction)
@@ -155,6 +156,34 @@ TEST_P(olLaunchKernelMultiArgsTest, Success) {
   int *Data = (int *)Mem;
   for (uint32_t i = 0; i < LaunchArgs.GroupSize.x; i++)
     ASSERT_EQ(Data[i], Args.A + Args.C + static_cast<int>(i));
+
+  ASSERT_SUCCESS(olMemFree(Mem));
+}
+
+struct Foo {
+  int a;
+  int b;
+};
+
+TEST_P(olLaunchKernelCompositeTest, Success) {
+  void *Mem;
+  ASSERT_SUCCESS(olMemAlloc(Device, OL_ALLOC_TYPE_MANAGED,
+                            LaunchArgs.GroupSize.x * sizeof(uint32_t), &Mem));
+
+  struct {
+    uint32_t N;
+    Foo F;
+    uint32_t *Out;
+  } Args{1, {2, 3}, (uint32_t *)Mem};
+
+  ASSERT_SUCCESS(
+      olLaunchKernel(Queue, Device, Kernel, &Args, sizeof(Args), &LaunchArgs));
+
+  ASSERT_SUCCESS(olSyncQueue(Queue));
+
+  uint32_t *Data = (uint32_t *)Mem;
+  for (uint32_t i = 0; i < LaunchArgs.GroupSize.x; i++)
+    ASSERT_EQ(Data[i], Args.N + Args.F.a + Args.F.b + i);
 
   ASSERT_SUCCESS(olMemFree(Mem));
 }
