@@ -40,11 +40,10 @@ struct olGetEventElapsedTimeTest : OffloadQueueTest {
   }
 
   void launchFoo() {
-    struct {
-      void *Mem;
-    } Args{Mem};
+    void *ArgPtrs[] = {&Mem};
+    size_t ArgSizes[] = {sizeof(Mem)};
 
-    ASSERT_SUCCESS(olLaunchKernel(Queue, Device, Kernel, &Args, sizeof(Args),
+    ASSERT_SUCCESS(olLaunchKernel(Queue, Device, Kernel, ArgPtrs, ArgSizes,
                                   &LaunchArgs));
   }
 

@@ -183,16 +183,43 @@ ol_device_handle_t getHostDevice() {
   return Device;
 }
 
-template <typename Args>
-void launchKernel(ol_queue_handle_t Queue, ol_device_handle_t Device,
-                  ol_program_handle_t Program, const char *Name,
-                  ol_kernel_launch_size_args_t LaunchArgs, Args &KernelArgs) {
+static void launchKernelImpl(ol_queue_handle_t Queue,
+                             ol_device_handle_t Device,
+                             ol_program_handle_t Program, const char *Name,
+                             ol_kernel_launch_size_args_t LaunchArgs,
+                             void **ArgPtrs, const size_t *ArgSizes) {
   ol_symbol_handle_t Kernel;
   OFFLOAD_ERR(olGetSymbol(Program, Name, OL_SYMBOL_KIND_KERNEL, &Kernel));
 
-  OFFLOAD_ERR(olLaunchKernel(Queue, Device, Kernel, &KernelArgs,
-                             std::is_empty_v<Args> ? 0 : sizeof(Args),
-                             &LaunchArgs));
+  OFFLOAD_ERR(
+      olLaunchKernel(Queue, Device, Kernel, ArgPtrs, ArgSizes, &LaunchArgs));
+}
+
+void launchKernel(ol_queue_handle_t Queue, ol_device_handle_t Device,
+                  ol_program_handle_t Program, const char *Name,
+                  ol_kernel_launch_size_args_t LaunchArgs,
+                  BeginArgs &KernelArgs) {
+  void *ArgPtrs[] = {&KernelArgs.Argc, &KernelArgs.Argv, &KernelArgs.Envp};
+  size_t ArgSizes[] = {sizeof(KernelArgs.Argc), sizeof(KernelArgs.Argv),
+                       sizeof(KernelArgs.Envp)};
+  launchKernelImpl(Queue, Device, Program, Name, LaunchArgs, ArgPtrs, ArgSizes);
+}
+
+void launchKernel(ol_queue_handle_t Queue, ol_device_handle_t Device,
+                  ol_program_handle_t Program, const char *Name,
+                  ol_kernel_launch_size_args_t LaunchArgs,
+                  StartArgs &KernelArgs) {
+  void *ArgPtrs[] = {&KernelArgs.Argc, &KernelArgs.Argv, &KernelArgs.Envp,
+                     &KernelArgs.Ret};
+  size_t ArgSizes[] = {sizeof(KernelArgs.Argc), sizeof(KernelArgs.Argv),
+                       sizeof(KernelArgs.Envp), sizeof(KernelArgs.Ret)};
+  launchKernelImpl(Queue, Device, Program, Name, LaunchArgs, ArgPtrs, ArgSizes);
+}
+
+void launchKernel(ol_queue_handle_t Queue, ol_device_handle_t Device,
+                  ol_program_handle_t Program, const char *Name,
+                  ol_kernel_launch_size_args_t LaunchArgs, EndArgs &) {
+  launchKernelImpl(Queue, Device, Program, Name, LaunchArgs, nullptr, nullptr);
 }
 
 int main(int argc, const char **argv, const char **envp) {
