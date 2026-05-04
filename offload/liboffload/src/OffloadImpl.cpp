@@ -1088,24 +1088,14 @@ launchKernelCommon(ol_queue_handle_t Queue, ol_device_handle_t Device,
 }
 
 Error olLaunchKernel_impl(ol_queue_handle_t Queue, ol_device_handle_t Device,
-                          ol_symbol_handle_t Kernel, const void *ArgumentsData,
-                          size_t ArgumentsSize,
+                          ol_symbol_handle_t Kernel, void **ArgPtrs,
+                          const size_t *ArgSizes,
                           const ol_kernel_launch_size_args_t *LaunchSizeArgs) {
-  KernelArgsTy LaunchArgs{};
-  KernelLaunchParamsTy Params;
-  Params.Data = const_cast<void *>(ArgumentsData);
-  Params.Size = ArgumentsSize;
-  LaunchArgs.ArgPtrs = reinterpret_cast<void **>(&Params);
-  // Don't do anything with pointer indirection; use arg data as-is
-  LaunchArgs.Flags.IsCUDA = true;
+  if ((ArgPtrs == nullptr) != (ArgSizes == nullptr))
+    return createOffloadError(
+        ErrorCode::INVALID_ARGUMENT,
+        "ArgPtrs and ArgSizes must both be NULL or both be non-NULL");
 
-  return launchKernelCommon(Queue, Device, Kernel, LaunchSizeArgs, LaunchArgs);
-}
-
-Error olLaunchKernelWithPtrArgs_impl(
-    ol_queue_handle_t Queue, ol_device_handle_t Device,
-    ol_symbol_handle_t Kernel, void **ArgPtrs, const size_t *ArgSizes,
-    const ol_kernel_launch_size_args_t *LaunchSizeArgs) {
   KernelArgsTy LaunchArgs{};
   LaunchArgs.ArgPtrs = ArgPtrs;
   // TODO: Either change ArgSizes to const size_t * or add a new variable.
