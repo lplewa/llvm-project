@@ -8,6 +8,7 @@
 
 #include "../common/Fixtures.hpp"
 #include <OffloadAPI.h>
+#include <cstring>
 #include <gtest/gtest.h>
 
 using olMemcpyTest = OffloadQueueTest;
@@ -111,6 +112,83 @@ TEST_P(olMemcpyTest, SuccessDtoHSync) {
     ASSERT_EQ(Val, 42);
   }
   ASSERT_SUCCESS(olMemFree(Alloc));
+}
+
+// Reproducer for heap corruption observed when a DtoH memcpy targets a
+// plain (non-USM, non-registered) host allocation. Mirrors a SYCL repro:
+//
+//   auto HostAllocF       = []{ return new int[1024]; };           // plain
+//   auto DeviceUSMAllocF  = []{ return malloc_device<int>(1024); }; // device
+//   Q.memcpy(host_ptr, device_ptr, 1024 * sizeof(int));
+//
+// Under valgrind the L0 plugin's deferred host-side memmove fires from
+// olDestroyQueue's synchronizeImpl path — after the user buffer has
+// already been freed.
+TEST_P(olMemcpyTest, SuccessDtoHUnregisteredHostInt1K) {
+  constexpr size_t NumElems = 1024;
+  constexpr size_t NumBytes = NumElems * sizeof(int);
+
+  int *HostDst = new int[NumElems];
+  std::memset(HostDst, 0, NumBytes);
+
+  void *DeviceSrc = nullptr;
+  ASSERT_SUCCESS(olMemAlloc(Device, OL_ALLOC_TYPE_DEVICE, NumBytes, &DeviceSrc));
+
+  std::vector<int> Input(NumElems);
+  for (size_t I = 0; I < NumElems; I++)
+    Input[I] = static_cast<int>(I);
+  ASSERT_SUCCESS(
+      olMemcpy(Queue, DeviceSrc, Device, Input.data(), Host, NumBytes));
+
+  // Device USM -> plain `new[]` host buffer.
+  ASSERT_SUCCESS(olMemcpy(Queue, HostDst, Host, DeviceSrc, Device, NumBytes));
+  ASSERT_SUCCESS(olSyncQueue(Queue));
+
+  for (size_t I = 0; I < NumElems; I++)
+    ASSERT_EQ(HostDst[I], static_cast<int>(I)) << "mismatch at " << I;
+
+  ASSERT_SUCCESS(olMemFree(DeviceSrc));
+  delete[] HostDst;
+}
+
+// Same pattern, but surrounds the destination with two adjacent plain host
+// allocations. Sentinels catch any stray write straddling the destination's
+// chunk metadata before olDestroyQueue runs.
+TEST_P(olMemcpyTest, SuccessDtoHAdjacentPlainHostAllocs) {
+  constexpr size_t NumElems = 1024;
+  constexpr size_t NumBytes = NumElems * sizeof(int);
+
+  int *Before = new int[NumElems];
+  int *HostDst = new int[NumElems];
+  int *After = new int[NumElems];
+  for (size_t I = 0; I < NumElems; I++) {
+    Before[I] = -1;
+    HostDst[I] = 0;
+    After[I] = -2;
+  }
+
+  void *DeviceSrc = nullptr;
+  ASSERT_SUCCESS(olMemAlloc(Device, OL_ALLOC_TYPE_DEVICE, NumBytes, &DeviceSrc));
+
+  std::vector<int> Input(NumElems);
+  for (size_t I = 0; I < NumElems; I++)
+    Input[I] = static_cast<int>(I);
+  ASSERT_SUCCESS(
+      olMemcpy(Queue, DeviceSrc, Device, Input.data(), Host, NumBytes));
+
+  ASSERT_SUCCESS(olMemcpy(Queue, HostDst, Host, DeviceSrc, Device, NumBytes));
+  ASSERT_SUCCESS(olSyncQueue(Queue));
+
+  for (size_t I = 0; I < NumElems; I++) {
+    ASSERT_EQ(Before[I], -1) << "adjacent (before) clobbered at " << I;
+    ASSERT_EQ(HostDst[I], static_cast<int>(I)) << "destination mismatch at " << I;
+    ASSERT_EQ(After[I], -2) << "adjacent (after) clobbered at " << I;
+  }
+
+  ASSERT_SUCCESS(olMemFree(DeviceSrc));
+  delete[] After;
+  delete[] HostDst;
+  delete[] Before;
 }
 
 TEST_P(olMemcpyTest, SuccessSizeZero) {
