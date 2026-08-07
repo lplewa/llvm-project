@@ -882,7 +882,10 @@ struct PluginContextTy {
 
   llvm::ArrayRef<GenericDeviceTy *> getDevices() const { return Devices; }
   GenericPluginTy &getPlugin() const { return Plugin; }
-  static PluginContextTy* contextForDevice(const GenericDeviceTy& Device);
+
+  /// Initialize a __tgt_async_info structure.
+  Error initAsyncInfo(GenericDeviceTy& Device, __tgt_async_info **AsyncInfoPtr);
+  virtual Error initAsyncInfoImpl(GenericDeviceTy& Device, AsyncInfoWrapperTy &AsyncInfoWrapper);
 
 protected:
   GenericPluginTy &Plugin;

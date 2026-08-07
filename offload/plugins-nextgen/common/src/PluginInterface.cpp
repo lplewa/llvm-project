@@ -951,11 +951,6 @@ Error PinnedAllocationMapTy::unregisterMemory(void *HstPtr, bool UnlockMemory) {
   return eraseEntry(*Entry);
 }
 
-
-PluginContextTy* PluginContextTy::contextForDevice(const GenericDeviceTy& Context) {
-
-}
-
 Error GenericDeviceTy::synchronize(__tgt_async_info *AsyncInfo,
                                    bool ReleaseQueue) {
   if (!AsyncInfo)
@@ -1223,16 +1218,21 @@ Error GenericDeviceTy::launchKernel(void *EntryPtr, void **ArgPtrs,
   return Err;
 }
 
-Error GenericDeviceTy::initAsyncInfo(__tgt_async_info **AsyncInfoPtr) {
+Error PluginContextTy::initAsyncInfo(GenericDeviceTy& Device, __tgt_async_info **AsyncInfoPtr) {
   assert(AsyncInfoPtr && "Invalid async info");
 
   *AsyncInfoPtr = new __tgt_async_info();
 
-  AsyncInfoWrapperTy AsyncInfoWrapper(*this, *AsyncInfoPtr);
+  AsyncInfoWrapperTy AsyncInfoWrapper(Device, *AsyncInfoPtr);
 
-  auto Err = initAsyncInfoImpl(AsyncInfoWrapper);
+  auto Err = initAsyncInfoImpl(Device, AsyncInfoWrapper);
   AsyncInfoWrapper.finalize(Err);
   return Err;
+}
+
+// Default implementation with fallback to device
+Error PluginContextTy::initAsyncInfoImpl(GenericDeviceTy& Device, AsyncInfoWrapperTy &AsyncInfoWrapper) {
+  return Device.initAsyncInfoImpl(AsyncInfoWrapper);
 }
 
 Error GenericDeviceTy::enqueueHostCall(void (*Callback)(void *), void *UserData,
