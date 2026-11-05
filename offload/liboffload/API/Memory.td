@@ -303,8 +303,8 @@ def olMemIsAccessible : Function {
     "device of the context.",
     "- A range inside a device allocation is accessible only from the device "
     "it was allocated on.",
-    "If `Context` is NULL, the pointer is not found in the table, or the range is "
-    "not fully inside a matching allocation, the backend of `Device` is asked.",
+    "If `Context` is NULL or the range is not fully inside a matching "
+    "allocation in the table, the backend of `Device` is asked.",
     "The answer is only reliable for memory allocated through liboffload with "
     "its owning `Context` passed, or for memory the backend itself tracks. For "
     "any other pointer the answer is backend specific and may be false even "
