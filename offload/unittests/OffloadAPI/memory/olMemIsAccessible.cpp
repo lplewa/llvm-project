@@ -19,6 +19,7 @@ OFFLOAD_TESTS_INSTANTIATE_HOST_DEVICE_FIXTURE(olMemIsAccessibleTest);
 namespace {
 // Returns a device that does not belong to the fixture's context, or nullptr.
 ol_device_handle_t getForeignDevice(ol_device_handle_t Device) {
+  ol_device_handle_t Host = TestEnvironment::getHostDevice();
   if (Host && Host != Device)
     return Host;
   for (auto D : TestEnvironment::getDevices())
@@ -298,13 +299,14 @@ OFFLOAD_TESTS_INSTANTIATE_MULTI_DEVICE_FIXTURE(
 // Host and managed allocations are accessible from every device of the
 // Context.
 TEST_P(olMemIsAccessibleMultiDeviceTest, HostAndManagedAccessibleEverywhere) {
-  void *HostPtr = nullptr;
-  ASSERT_SUCCESS(olMemAllocHost(Context, Devices[0], 1024, &HostPtr));
-  ASSERT_NE(HostPtr, nullptr);
+  // Allocate the managed pointer first so an unsupported skip leaks nothing.
   void *ManagedPtr = nullptr;
   ASSERT_SUCCESS_OR_UNSUPPORTED(olMemAlloc(
       Context, Devices[0], OL_ALLOC_TYPE_MANAGED, 1024, &ManagedPtr));
   ASSERT_NE(ManagedPtr, nullptr);
+  void *HostPtr = nullptr;
+  ASSERT_SUCCESS(olMemAllocHost(Context, Devices[0], 1024, &HostPtr));
+  ASSERT_NE(HostPtr, nullptr);
 
   for (auto D : Devices) {
     bool IsAccessible = false;
@@ -323,8 +325,7 @@ TEST_P(olMemIsAccessibleMultiDeviceTest, HostAndManagedAccessibleEverywhere) {
 // A device allocation is accessible from its owning device; other devices are
 // answered by the backend.
 TEST_P(olMemIsAccessibleMultiDeviceTest, DeviceAllocationOwnerAndPeer) {
-  if (Devices.size() < 2)
-    GTEST_SKIP() << "Requires at least two devices.";
+  ASSERT_GE(Devices.size(), 2u);
 
   void *Ptr = nullptr;
   ASSERT_SUCCESS(
@@ -336,16 +337,22 @@ TEST_P(olMemIsAccessibleMultiDeviceTest, DeviceAllocationOwnerAndPeer) {
       olMemIsAccessible(Context, Devices[0], Ptr, 1024, &IsAccessible));
   ASSERT_TRUE(IsAccessible);
 
+  // The peer answer comes from the backend, so it must match a backend-only
+  // query.
+  bool PeerAccessible = false;
   ASSERT_SUCCESS(
-      olMemIsAccessible(Context, Devices[1], Ptr, 1024, &IsAccessible));
+      olMemIsAccessible(Context, Devices[1], Ptr, 1024, &PeerAccessible));
+  bool BackendAccessible = false;
+  ASSERT_SUCCESS(
+      olMemIsAccessible(nullptr, Devices[1], Ptr, 1024, &BackendAccessible));
+  ASSERT_EQ(PeerAccessible, BackendAccessible);
 
   ASSERT_SUCCESS(olMemFree(Context, Ptr));
 }
 
 // A Device outside a non-NULL Context is rejected.
 TEST_P(olMemIsAccessibleMultiDeviceTest, InvalidDeviceOutsideContext) {
-  if (Devices.size() < 2)
-    GTEST_SKIP() << "Requires at least two devices.";
+  ASSERT_GE(Devices.size(), 2u);
 
   ol_context_handle_t SingleContext = nullptr;
   ASSERT_SUCCESS(olCreateContext(1, &Devices[0], &SingleContext));

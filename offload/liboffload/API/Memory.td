@@ -331,13 +331,13 @@ def olMemIsAccessible : Function {
   ];
   let returns = [
     Return<"OL_ERRC_INVALID_DEVICE", [
-      "The `Context` is not NULL and `Device` does not belong to it"
+      "`Context` is not NULL and `Device` does not belong to it."
     ]>,
     Return<"OL_ERRC_INVALID_ARGUMENT", [
-      "The backend rejects the range"
+      "The backend rejects the range, for example a zero-length one."
     ]>,
     Return<"OL_ERRC_UNSUPPORTED", [
-      "The backend cannot determine whether `Device` can access the range"
+      "The backend cannot determine whether `Device` can access the range."
     ]>
   ];
 }
