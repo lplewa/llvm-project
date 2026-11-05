@@ -303,20 +303,20 @@ def olMemIsAccessible : Function {
     "device of the context.",
     "- A range inside a device allocation is accessible only from the device "
     "it was allocated on.",
-    "If `Context` is NULL or the range is not fully inside a matching "
-    "allocation in the table, the backend of `Device` is asked.",
+    "If the range is not fully inside a matching allocation in the table, the "
+    "backend of `Device` is asked.",
     "The answer is only reliable for memory allocated through liboffload with "
     "its owning `Context` passed, or for memory the backend itself tracks. For "
     "any other pointer the answer is backend specific and may be false even "
     "though the device can access the memory. A NULL `Context` bypasses the "
     "allocation table and relies solely on the backend.",
-    "liboffload does not validate `Size`. A zero-length range is backend "
-    "specific and may be rejected with OL_ERRC_INVALID_ARGUMENT; callers "
-    "should pass a `Size` of at least 1.",
+    "liboffload does not validate `Size`. The result for a zero-length range "
+    "is unspecified: the backend may report false or fail with "
+    "OL_ERRC_INVALID_ARGUMENT. Callers should pass a `Size` of at least 1.",
     "This is a read-only query. It is thread safe and may be called "
-    "concurrently with other calls on the same `Context` and `Device`, "
-    "including allocation and free. The result is a snapshot: freeing the "
-    "queried memory concurrently makes it stale.",
+    "concurrently with other calls on the same `Context` and `Device`. The "
+    "result is a snapshot: freeing the queried memory concurrently makes it "
+    "stale.",
     "`Ptr` is never dereferenced, no ownership of it is taken, and it does "
     "not need to remain valid after the call returns. `IsAccessible` is "
     "written only when the function returns OL_SUCCESS."
