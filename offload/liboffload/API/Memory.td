@@ -296,9 +296,9 @@ def olMemIsAccessible : Function {
   let details = [
     "`olMemIsAccessible` reports whether `Device` can directly access every "
     "byte of the range [`Ptr`, `Ptr` + `Size`).",
-    "If `Context` is not NULL, `Device` must belong to it and the context's "
-    "allocation table, which holds the results of the olMemAlloc* calls, is "
-    "consulted first:",
+    "If `Context` is not NULL, `Device` must belong to it.",
+    "If `Context` is not NULL, its allocation table, which holds the results "
+    "of the `olMemAlloc*` calls, is consulted first:",
     "- A range inside a host or managed allocation is accessible from every "
     "device of the context.",
     "- A range inside a device allocation is answered for the device it was "
@@ -313,11 +313,11 @@ def olMemIsAccessible : Function {
     "false even though the device can access the memory.",
     "`Size` is not validated. The result for a zero-length range is "
     "unspecified: the backend may report false or fail with "
-    "OL_ERRC_INVALID_ARGUMENT.",
+    "`OL_ERRC_INVALID_ARGUMENT`.",
     "`olMemIsAccessible` is a read-only query.",
     "`Ptr` is never dereferenced, no ownership of it is taken, and it need "
     "not remain valid after the call returns.",
-    "`IsAccessible` is written only when the function returns OL_SUCCESS.",
+    "`IsAccessible` is written only when the function returns `OL_SUCCESS`.",
     "`olMemIsAccessible` is thread safe.",
     "The result is a snapshot. Freeing the queried memory concurrently makes "
     "it stale."
@@ -331,10 +331,10 @@ def olMemIsAccessible : Function {
   ];
   let returns = [
     Return<"OL_ERRC_INVALID_DEVICE", [
-      "`Context` is not NULL and `Device` does not belong to it"
+      "The `Context` is not NULL and `Device` does not belong to it"
     ]>,
     Return<"OL_ERRC_INVALID_ARGUMENT", [
-      "The backend rejects the range, such as a zero-length range"
+      "The backend rejects the range"
     ]>,
     Return<"OL_ERRC_UNSUPPORTED", [
       "The backend cannot determine whether `Device` can access the range"

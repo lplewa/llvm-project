@@ -14,8 +14,22 @@
 #include <vector>
 
 using olMemIsAccessibleTest = OffloadDeviceTest;
-OFFLOAD_TESTS_INSTANTIATE_DEVICE_FIXTURE(olMemIsAccessibleTest);
+OFFLOAD_TESTS_INSTANTIATE_HOST_DEVICE_FIXTURE(olMemIsAccessibleTest);
 
+namespace {
+// Returns a device that does not belong to the fixture's context, or nullptr.
+ol_device_handle_t getForeignDevice(ol_device_handle_t Device) {
+  if (Host && Host != Device)
+    return Host;
+  for (auto D : TestEnvironment::getDevices())
+    if (D.Handle != Device)
+      return D.Handle;
+  return nullptr;
+}
+} // namespace
+
+// A range inside a device allocation is accessible from the device it was
+// allocated on.
 TEST_P(olMemIsAccessibleTest, SuccessDeviceAllocation) {
   void *Ptr = nullptr;
   ASSERT_SUCCESS(olMemAlloc(Context, Device, OL_ALLOC_TYPE_DEVICE, 1024, &Ptr));
@@ -28,6 +42,7 @@ TEST_P(olMemIsAccessibleTest, SuccessDeviceAllocation) {
   ASSERT_SUCCESS(olMemFree(Context, Ptr));
 }
 
+// A range inside a host allocation is accessible from the device.
 TEST_P(olMemIsAccessibleTest, SuccessHostAllocation) {
   void *Ptr = nullptr;
   ASSERT_SUCCESS(olMemAllocHost(Context, Device, 1024, &Ptr));
@@ -40,6 +55,7 @@ TEST_P(olMemIsAccessibleTest, SuccessHostAllocation) {
   ASSERT_SUCCESS(olMemFree(Context, Ptr));
 }
 
+// Any range fully inside a matching allocation is accessible.
 TEST_P(olMemIsAccessibleTest, SuccessInteriorRange) {
   void *Ptr = nullptr;
   ASSERT_SUCCESS(olMemAlloc(Context, Device, OL_ALLOC_TYPE_DEVICE, 1024, &Ptr));
@@ -54,6 +70,7 @@ TEST_P(olMemIsAccessibleTest, SuccessInteriorRange) {
   ASSERT_SUCCESS(olMemFree(Context, Ptr));
 }
 
+// A NULL Context bypasses the allocation table and relies on the backend.
 TEST_P(olMemIsAccessibleTest, SuccessNoContext) {
   void *Ptr = nullptr;
   ASSERT_SUCCESS(olMemAlloc(Context, Device, OL_ALLOC_TYPE_DEVICE, 1024, &Ptr));
@@ -70,6 +87,8 @@ TEST_P(olMemIsAccessibleTest, SuccessNoContext) {
   ASSERT_SUCCESS(olMemFree(Context, Ptr));
 }
 
+// Memory not known to liboffload is answered by the backend and may be
+// false.
 TEST_P(olMemIsAccessibleTest, SuccessNotAccessibleHostMemory) {
   // Plain host memory is not accessible from the device unless the system
   // provides unified shared memory.
@@ -90,6 +109,7 @@ TEST_P(olMemIsAccessibleTest, SuccessNotAccessibleHostMemory) {
   ASSERT_FALSE(IsAccessible);
 }
 
+// A range not fully inside an allocation is answered by the backend.
 TEST_P(olMemIsAccessibleTest, SuccessNotAccessibleBeyondAllocation) {
   void *Ptr = nullptr;
   ASSERT_SUCCESS(olMemAlloc(Context, Device, OL_ALLOC_TYPE_DEVICE, 1024, &Ptr));
@@ -111,6 +131,7 @@ TEST_P(olMemIsAccessibleTest, SuccessNotAccessibleBeyondAllocation) {
   ASSERT_SUCCESS(olMemFree(Context, Ptr));
 }
 
+// A range whose end overflows is not reported as accessible.
 TEST_P(olMemIsAccessibleTest, SuccessNotAccessibleSizeOverflow) {
   void *Ptr = nullptr;
   ASSERT_SUCCESS(olMemAlloc(Context, Device, OL_ALLOC_TYPE_DEVICE, 1024, &Ptr));
@@ -126,6 +147,7 @@ TEST_P(olMemIsAccessibleTest, SuccessNotAccessibleSizeOverflow) {
   ASSERT_SUCCESS(olMemFree(Context, Ptr));
 }
 
+// Ptr must not be NULL.
 TEST_P(olMemIsAccessibleTest, InvalidNullPointer) {
   bool IsAccessible = false;
   ASSERT_ERROR(
@@ -133,6 +155,7 @@ TEST_P(olMemIsAccessibleTest, InvalidNullPointer) {
       olMemIsAccessible(Context, Device, nullptr, 1024, &IsAccessible));
 }
 
+// IsAccessible must not be NULL.
 TEST_P(olMemIsAccessibleTest, InvalidNullOutputPointer) {
   void *Ptr = nullptr;
   ASSERT_SUCCESS(olMemAlloc(Context, Device, OL_ALLOC_TYPE_DEVICE, 1024, &Ptr));
@@ -144,6 +167,7 @@ TEST_P(olMemIsAccessibleTest, InvalidNullOutputPointer) {
   ASSERT_SUCCESS(olMemFree(Context, Ptr));
 }
 
+// Device must not be NULL.
 TEST_P(olMemIsAccessibleTest, InvalidNullDevice) {
   void *Ptr = nullptr;
   ASSERT_SUCCESS(olMemAlloc(Context, Device, OL_ALLOC_TYPE_DEVICE, 1024, &Ptr));
@@ -156,18 +180,186 @@ TEST_P(olMemIsAccessibleTest, InvalidNullDevice) {
   ASSERT_SUCCESS(olMemFree(Context, Ptr));
 }
 
+// A non-NULL Context requires Device to belong to it.
 TEST_P(olMemIsAccessibleTest, InvalidDeviceNotInContext) {
-  if (!Host)
-    GTEST_SKIP() << "No host device available.";
+  ol_device_handle_t Foreign = getForeignDevice(Device);
+  if (!Foreign)
+    GTEST_SKIP() << "No device outside the context available.";
 
   void *Ptr = nullptr;
   ASSERT_SUCCESS(olMemAlloc(Context, Device, OL_ALLOC_TYPE_DEVICE, 1024, &Ptr));
   ASSERT_NE(Ptr, nullptr);
 
-  // The host device does not belong to the context under test.
   bool IsAccessible = false;
   ASSERT_ERROR(OL_ERRC_INVALID_DEVICE,
-               olMemIsAccessible(Context, Host, Ptr, 1024, &IsAccessible));
+               olMemIsAccessible(Context, Foreign, Ptr, 1024, &IsAccessible));
 
   ASSERT_SUCCESS(olMemFree(Context, Ptr));
+}
+
+// IsAccessible is not written when the call fails.
+TEST_P(olMemIsAccessibleTest, FailureLeavesOutputUntouched) {
+  ol_device_handle_t Foreign = getForeignDevice(Device);
+  if (!Foreign)
+    GTEST_SKIP() << "No device outside the context available.";
+
+  void *Ptr = nullptr;
+  ASSERT_SUCCESS(olMemAlloc(Context, Device, OL_ALLOC_TYPE_DEVICE, 1024, &Ptr));
+  ASSERT_NE(Ptr, nullptr);
+
+  for (bool Sentinel : {false, true}) {
+    bool IsAccessible = Sentinel;
+    ASSERT_ERROR(OL_ERRC_INVALID_DEVICE,
+                 olMemIsAccessible(Context, Foreign, Ptr, 1024, &IsAccessible));
+    ASSERT_EQ(IsAccessible, Sentinel);
+
+    IsAccessible = Sentinel;
+    ASSERT_ERROR(OL_ERRC_INVALID_NULL_HANDLE,
+                 olMemIsAccessible(Context, nullptr, Ptr, 1024, &IsAccessible));
+    ASSERT_EQ(IsAccessible, Sentinel);
+
+    IsAccessible = Sentinel;
+    ASSERT_ERROR(
+        OL_ERRC_INVALID_NULL_POINTER,
+        olMemIsAccessible(Context, Device, nullptr, 1024, &IsAccessible));
+    ASSERT_EQ(IsAccessible, Sentinel);
+  }
+
+  ASSERT_SUCCESS(olMemFree(Context, Ptr));
+}
+
+// A range inside a managed allocation is accessible from the device.
+TEST_P(olMemIsAccessibleTest, SuccessManagedAllocation) {
+  void *Ptr = nullptr;
+  ASSERT_SUCCESS_OR_UNSUPPORTED(
+      olMemAlloc(Context, Device, OL_ALLOC_TYPE_MANAGED, 1024, &Ptr));
+  ASSERT_NE(Ptr, nullptr);
+
+  bool IsAccessible = false;
+  ASSERT_SUCCESS(olMemIsAccessible(Context, Device, Ptr, 1024, &IsAccessible));
+  ASSERT_TRUE(IsAccessible);
+
+  ASSERT_SUCCESS(olMemFree(Context, Ptr));
+}
+
+// A range only partially inside an allocation is answered by the backend, so
+// the Context does not change the answer.
+TEST_P(olMemIsAccessibleTest, PartialRangeAnsweredByBackend) {
+  void *Ptr = nullptr;
+  ASSERT_SUCCESS(olMemAlloc(Context, Device, OL_ALLOC_TYPE_DEVICE, 1024, &Ptr));
+  ASSERT_NE(Ptr, nullptr);
+
+  void *Start = static_cast<char *>(Ptr) + 512;
+  bool WithContext = false;
+  bool WithoutContext = true;
+  ASSERT_SUCCESS(olMemIsAccessible(Context, Device, Start, 1024, &WithContext));
+  ASSERT_SUCCESS(olMemIsAccessible(/*Context=*/nullptr, Device, Start, 1024,
+                                   &WithoutContext));
+  ASSERT_EQ(WithContext, WithoutContext);
+
+  ASSERT_SUCCESS(olMemFree(Context, Ptr));
+}
+
+// Ptr need not stay valid after the call; querying freed memory does not
+// crash. The result is backend specific and ignored.
+TEST_P(olMemIsAccessibleTest, QueryAfterFree) {
+  void *Ptr = nullptr;
+  ASSERT_SUCCESS(olMemAlloc(Context, Device, OL_ALLOC_TYPE_DEVICE, 1024, &Ptr));
+  ASSERT_NE(Ptr, nullptr);
+  ASSERT_SUCCESS(olMemFree(Context, Ptr));
+
+  bool IsAccessible = false;
+  (void)olMemIsAccessible(Context, Device, Ptr, 1024, &IsAccessible);
+  (void)olMemIsAccessible(/*Context=*/nullptr, Device, Ptr, 1024,
+                          &IsAccessible);
+}
+
+// olMemIsAccessible is thread safe when the queried memory is not freed
+// concurrently.
+TEST_P(olMemIsAccessibleTest, ConcurrentQueries) {
+  void *Ptr = nullptr;
+  ASSERT_SUCCESS(olMemAlloc(Context, Device, OL_ALLOC_TYPE_DEVICE, 1024, &Ptr));
+  ASSERT_NE(Ptr, nullptr);
+
+  threadify([&](size_t) {
+    bool IsAccessible = false;
+    ASSERT_SUCCESS(
+        olMemIsAccessible(Context, Device, Ptr, 1024, &IsAccessible));
+    ASSERT_TRUE(IsAccessible);
+  });
+
+  ASSERT_SUCCESS(olMemFree(Context, Ptr));
+}
+
+struct olMemIsAccessibleMultiDeviceTest : OffloadDeviceTest {};
+OFFLOAD_TESTS_INSTANTIATE_MULTI_DEVICE_FIXTURE(
+    olMemIsAccessibleMultiDeviceTest);
+
+// Host and managed allocations are accessible from every device of the
+// Context.
+TEST_P(olMemIsAccessibleMultiDeviceTest, HostAndManagedAccessibleEverywhere) {
+  void *HostPtr = nullptr;
+  ASSERT_SUCCESS(olMemAllocHost(Context, Devices[0], 1024, &HostPtr));
+  ASSERT_NE(HostPtr, nullptr);
+  void *ManagedPtr = nullptr;
+  ASSERT_SUCCESS_OR_UNSUPPORTED(olMemAlloc(
+      Context, Devices[0], OL_ALLOC_TYPE_MANAGED, 1024, &ManagedPtr));
+  ASSERT_NE(ManagedPtr, nullptr);
+
+  for (auto D : Devices) {
+    bool IsAccessible = false;
+    ASSERT_SUCCESS(olMemIsAccessible(Context, D, HostPtr, 1024, &IsAccessible));
+    ASSERT_TRUE(IsAccessible);
+    IsAccessible = false;
+    ASSERT_SUCCESS(
+        olMemIsAccessible(Context, D, ManagedPtr, 1024, &IsAccessible));
+    ASSERT_TRUE(IsAccessible);
+  }
+
+  ASSERT_SUCCESS(olMemFree(Context, HostPtr));
+  ASSERT_SUCCESS(olMemFree(Context, ManagedPtr));
+}
+
+// A device allocation is accessible from its owning device; other devices are
+// answered by the backend.
+TEST_P(olMemIsAccessibleMultiDeviceTest, DeviceAllocationOwnerAndPeer) {
+  if (Devices.size() < 2)
+    GTEST_SKIP() << "Requires at least two devices.";
+
+  void *Ptr = nullptr;
+  ASSERT_SUCCESS(
+      olMemAlloc(Context, Devices[0], OL_ALLOC_TYPE_DEVICE, 1024, &Ptr));
+  ASSERT_NE(Ptr, nullptr);
+
+  bool IsAccessible = false;
+  ASSERT_SUCCESS(
+      olMemIsAccessible(Context, Devices[0], Ptr, 1024, &IsAccessible));
+  ASSERT_TRUE(IsAccessible);
+
+  ASSERT_SUCCESS(
+      olMemIsAccessible(Context, Devices[1], Ptr, 1024, &IsAccessible));
+
+  ASSERT_SUCCESS(olMemFree(Context, Ptr));
+}
+
+// A Device outside a non-NULL Context is rejected.
+TEST_P(olMemIsAccessibleMultiDeviceTest, InvalidDeviceOutsideContext) {
+  if (Devices.size() < 2)
+    GTEST_SKIP() << "Requires at least two devices.";
+
+  ol_context_handle_t SingleContext = nullptr;
+  ASSERT_SUCCESS(olCreateContext(1, &Devices[0], &SingleContext));
+
+  void *Ptr = nullptr;
+  ASSERT_SUCCESS(
+      olMemAlloc(SingleContext, Devices[0], OL_ALLOC_TYPE_DEVICE, 1024, &Ptr));
+  ASSERT_NE(Ptr, nullptr);
+
+  bool IsAccessible = false;
+  ASSERT_ERROR(
+      OL_ERRC_INVALID_DEVICE,
+      olMemIsAccessible(SingleContext, Devices[1], Ptr, 1024, &IsAccessible));
+
+  ASSERT_SUCCESS(olMemFree(SingleContext, Ptr));
+  ASSERT_SUCCESS(olDestroyContext(SingleContext));
 }
