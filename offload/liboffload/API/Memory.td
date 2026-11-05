@@ -294,14 +294,14 @@ def olMemUnregister : Function {
 def olMemIsAccessible : Function {
   let desc = "Report whether `Device` can directly access a memory range.";
   let details = [
-    "`olMemIsAccessible` reports whether `Device` can directly access every "
-    "byte of the range [`Ptr`, `Ptr` + `Size`).",
+    "The range is [`Ptr`, `Ptr` + `Size`). Every byte of it must be directly "
+    "accessible from `Device`.",
     "If `Context` is not NULL, `Device` must belong to it.",
     "If `Context` is not NULL, its allocation table, which holds the results "
     "of the `olMemAlloc*` calls, is consulted first:",
     "- A range inside a host or managed allocation is accessible from every "
     "device of the context.",
-    "- A range inside a device allocation is answered for the device it was "
+    "- A range inside a device allocation is accessible from the device it was "
     "allocated on. Other devices are answered by the backend.",
     "If the range is not fully inside a matching allocation, the backend of "
     "`Device` is asked.",
@@ -314,9 +314,9 @@ def olMemIsAccessible : Function {
     "`Size` is not validated. The result for a zero-length range is "
     "unspecified: the backend may report false or fail with "
     "`OL_ERRC_INVALID_ARGUMENT`.",
-    "`olMemIsAccessible` is a read-only query.",
-    "`Ptr` is never dereferenced, no ownership of it is taken, and it need "
-    "not remain valid after the call returns.",
+    "`olMemIsAccessible` is a read-only query. `Ptr` is never dereferenced, no "
+    "ownership of it is taken, and it need not remain valid after the call "
+    "returns.",
     "`IsAccessible` is written only when the function returns `OL_SUCCESS`.",
     "`olMemIsAccessible` is thread safe.",
     "The result is a snapshot. Freeing the queried memory concurrently makes "
@@ -334,7 +334,7 @@ def olMemIsAccessible : Function {
       "`Context` is not NULL and `Device` does not belong to it."
     ]>,
     Return<"OL_ERRC_INVALID_ARGUMENT", [
-      "The backend rejects the range, for example a zero-length one."
+      "The backend rejects the range."
     ]>,
     Return<"OL_ERRC_UNSUPPORTED", [
       "The backend cannot determine whether `Device` can access the range."

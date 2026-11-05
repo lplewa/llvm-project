@@ -17,7 +17,8 @@ using olMemIsAccessibleTest = OffloadDeviceTest;
 OFFLOAD_TESTS_INSTANTIATE_HOST_DEVICE_FIXTURE(olMemIsAccessibleTest);
 
 namespace {
-// Returns a device that does not belong to the fixture's context, or nullptr.
+// Returns a device other than Device that the fixture's Context was not
+// created with, or nullptr.
 ol_device_handle_t getForeignDevice(ol_device_handle_t Device) {
   ol_device_handle_t Host = TestEnvironment::getHostDevice();
   if (Host && Host != Device)
@@ -88,8 +89,7 @@ TEST_P(olMemIsAccessibleTest, SuccessNoContext) {
   ASSERT_SUCCESS(olMemFree(Context, Ptr));
 }
 
-// Memory not known to liboffload is answered by the backend and may be
-// false.
+// Memory not known to liboffload is answered by the backend and may be false.
 TEST_P(olMemIsAccessibleTest, SuccessNotAccessibleHostMemory) {
   // Plain host memory is not accessible from the device unless the system
   // provides unified shared memory.
@@ -261,8 +261,8 @@ TEST_P(olMemIsAccessibleTest, PartialRangeAnsweredByBackend) {
   ASSERT_SUCCESS(olMemFree(Context, Ptr));
 }
 
-// Ptr need not stay valid after the call; querying freed memory does not
-// crash. The result is backend specific and ignored.
+// Ptr need not stay valid after the call. This only checks that querying freed
+// memory returns and leaves later queries working; its result is ignored.
 TEST_P(olMemIsAccessibleTest, QueryAfterFree) {
   void *Ptr = nullptr;
   ASSERT_SUCCESS(olMemAlloc(Context, Device, OL_ALLOC_TYPE_DEVICE, 1024, &Ptr));
@@ -273,6 +273,15 @@ TEST_P(olMemIsAccessibleTest, QueryAfterFree) {
   (void)olMemIsAccessible(Context, Device, Ptr, 1024, &IsAccessible);
   (void)olMemIsAccessible(/*Context=*/nullptr, Device, Ptr, 1024,
                           &IsAccessible);
+
+  void *Live = nullptr;
+  ASSERT_SUCCESS(
+      olMemAlloc(Context, Device, OL_ALLOC_TYPE_DEVICE, 1024, &Live));
+  ASSERT_NE(Live, nullptr);
+  IsAccessible = false;
+  ASSERT_SUCCESS(olMemIsAccessible(Context, Device, Live, 1024, &IsAccessible));
+  ASSERT_TRUE(IsAccessible);
+  ASSERT_SUCCESS(olMemFree(Context, Live));
 }
 
 // olMemIsAccessible is thread safe when the queried memory is not freed
