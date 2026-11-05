@@ -297,14 +297,14 @@ def olMemIsAccessible : Function {
     "Reports whether `Device` can directly access the range "
     "[`Ptr`, `Ptr` + `Size`).",
     "If `Context` is not NULL, `Device` must belong to it and the context's "
-    "allocation table (the results of olMemAlloc and olMemAllocHost) is "
+    "allocation table (the results of the olMemAlloc* allocation calls) is "
     "consulted first:",
     "- A range inside a host or managed allocation is accessible from every "
     "device of the context.",
     "- A range inside a device allocation is accessible only from the device "
     "it was allocated on.",
-    "If `Context` is NULL, the pointer is not found in the table, or the table "
-    "entry does not decide the answer, the backend of `Device` is asked.",
+    "If `Context` is NULL, the pointer is not found in the table, or the range is "
+    "not fully inside a matching allocation, the backend of `Device` is asked.",
     "The answer is only reliable for memory allocated through liboffload with "
     "its owning `Context` passed, or for memory the backend itself tracks. For "
     "any other pointer the answer is backend specific and may be false even "
