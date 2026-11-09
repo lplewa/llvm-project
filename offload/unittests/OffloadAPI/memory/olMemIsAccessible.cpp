@@ -57,7 +57,7 @@ TEST_P(olMemIsAccessibleTest, SuccessHostAllocation) {
   ASSERT_SUCCESS(olMemFree(Context, Ptr));
 }
 
-// Any range fully inside a matching allocation is accessible.
+// Any range fully inside a liboffload allocation in Context is accessible.
 TEST_P(olMemIsAccessibleTest, SuccessInteriorRange) {
   void *Ptr = nullptr;
   ASSERT_SUCCESS(olMemAlloc(Context, Device, OL_ALLOC_TYPE_DEVICE, 1024, &Ptr));
@@ -72,16 +72,14 @@ TEST_P(olMemIsAccessibleTest, SuccessInteriorRange) {
   ASSERT_SUCCESS(olMemFree(Context, Ptr));
 }
 
-// A NULL Context bypasses the allocation table and relies on the backend.
+// A NULL Context is deprecated but still accepted.
 TEST_P(olMemIsAccessibleTest, SuccessNoContext) {
   void *Ptr = nullptr;
   ASSERT_SUCCESS(olMemAlloc(Context, Device, OL_ALLOC_TYPE_DEVICE, 1024, &Ptr));
   ASSERT_NE(Ptr, nullptr);
 
-  // Without a context the query is answered by the plugin's own pointer
-  // tracking rather than by the context's allocation info. Allocations made
-  // in a context are not necessarily tracked by the device, so the answer is
-  // backend specific; only require that the query itself succeeds.
+  // Without a context the answer is backend specific, so only require that
+  // the query itself succeeds.
   bool IsAccessible = false;
   ASSERT_SUCCESS(
       olMemIsAccessible(/*Context=*/nullptr, Device, Ptr, 1024, &IsAccessible));
@@ -89,7 +87,8 @@ TEST_P(olMemIsAccessibleTest, SuccessNoContext) {
   ASSERT_SUCCESS(olMemFree(Context, Ptr));
 }
 
-// Memory not known to liboffload is answered by the backend and may be false.
+// For memory not allocated through liboffload the answer is backend specific
+// and may be false.
 TEST_P(olMemIsAccessibleTest, SuccessNotAccessibleHostMemory) {
   // Plain host memory is not accessible from the device unless the system
   // provides unified shared memory.
@@ -110,7 +109,8 @@ TEST_P(olMemIsAccessibleTest, SuccessNotAccessibleHostMemory) {
   ASSERT_FALSE(IsAccessible);
 }
 
-// A range not fully inside an allocation is answered by the backend.
+// For a range not fully inside an allocation the answer is backend specific
+// and may be false.
 TEST_P(olMemIsAccessibleTest, SuccessNotAccessibleBeyondAllocation) {
   void *Ptr = nullptr;
   ASSERT_SUCCESS(olMemAlloc(Context, Device, OL_ALLOC_TYPE_DEVICE, 1024, &Ptr));
@@ -243,8 +243,8 @@ TEST_P(olMemIsAccessibleTest, SuccessManagedAllocation) {
   ASSERT_SUCCESS(olMemFree(Context, Ptr));
 }
 
-// A range only partially inside an allocation is answered by the backend, so
-// the Context does not change the answer.
+// For a range not fully inside a liboffload allocation the answer is backend
+// specific and does not depend on Context.
 TEST_P(olMemIsAccessibleTest, PartialRangeAnsweredByBackend) {
   void *Ptr = nullptr;
   ASSERT_SUCCESS(olMemAlloc(Context, Device, OL_ALLOC_TYPE_DEVICE, 1024, &Ptr));
@@ -284,8 +284,7 @@ TEST_P(olMemIsAccessibleTest, QueryAfterFree) {
   ASSERT_SUCCESS(olMemFree(Context, Live));
 }
 
-// olMemIsAccessible is thread safe when the queried memory is not freed
-// concurrently.
+// olMemIsAccessible is thread safe.
 TEST_P(olMemIsAccessibleTest, ConcurrentQueries) {
   void *Ptr = nullptr;
   ASSERT_SUCCESS(olMemAlloc(Context, Device, OL_ALLOC_TYPE_DEVICE, 1024, &Ptr));
@@ -331,8 +330,8 @@ TEST_P(olMemIsAccessibleMultiDeviceTest, HostAndManagedAccessibleEverywhere) {
   ASSERT_SUCCESS(olMemFree(Context, ManagedPtr));
 }
 
-// A device allocation is accessible from its owning device; other devices are
-// answered by the backend.
+// A device allocation is accessible from its owning device; the answer for
+// other devices is backend specific.
 TEST_P(olMemIsAccessibleMultiDeviceTest, DeviceAllocationOwnerAndPeer) {
   ASSERT_GE(Devices.size(), 2u);
 
@@ -346,8 +345,8 @@ TEST_P(olMemIsAccessibleMultiDeviceTest, DeviceAllocationOwnerAndPeer) {
       olMemIsAccessible(Context, Devices[0], Ptr, 1024, &IsAccessible));
   ASSERT_TRUE(IsAccessible);
 
-  // The peer answer comes from the backend, so it must match a backend-only
-  // query.
+  // The peer answer is backend specific, so it must match the answer obtained
+  // without a context.
   bool PeerAccessible = false;
   ASSERT_SUCCESS(
       olMemIsAccessible(Context, Devices[1], Ptr, 1024, &PeerAccessible));

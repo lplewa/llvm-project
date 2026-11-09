@@ -296,34 +296,25 @@ def olMemIsAccessible : Function {
   let details = [
     "The range is [`Ptr`, `Ptr` + `Size`). Every byte of it must be directly "
     "accessible from `Device`.",
-    "If `Context` is not NULL, `Device` must belong to it.",
-    "If `Context` is not NULL, its allocation table, which holds the results "
-    "of the `olMemAlloc*` calls, is consulted first:",
-    "- A range inside a host or managed allocation is accessible from every "
-    "device of the context.",
-    "- A range inside a device allocation is accessible from the device it was "
-    "allocated on. Other devices are answered by the backend.",
-    "If the range is not fully inside a matching allocation, the backend of "
-    "`Device` is asked.",
-    "A NULL `Context` bypasses the allocation table and relies solely on the "
-    "backend.",
-    "The answer is reliable only for allocations made through liboffload and "
-    "queried with their owning `Context`, or for memory the backend itself "
-    "tracks. For any other pointer the answer is backend specific and may be "
+    "`Device` must belong to `Context`.",
+    "The answer is reliable for memory allocated through liboffload and "
+    "queried with its owning `Context`. Host and managed allocations are "
+    "accessible from every device of the context, device allocations from the "
+    "device they were allocated on.",
+    "For any other pointer or range the answer is backend specific and may be "
     "false even though the device can access the memory.",
+    "Passing NULL for `Context` is deprecated. The query then relies solely on "
+    "the backend.",
     "`Size` is not validated. The result for a zero-length range is "
-    "unspecified: the backend may report false or fail with "
-    "`OL_ERRC_INVALID_ARGUMENT`.",
-    "`olMemIsAccessible` is a read-only query. `Ptr` is never dereferenced, no "
-    "ownership of it is taken, and it need not remain valid after the call "
-    "returns.",
+    "unspecified: it may be false or fail with `OL_ERRC_INVALID_ARGUMENT`.",
+    "`Ptr` is never dereferenced, no ownership of it is taken, and it need "
+    "not remain valid after the call returns.",
     "`IsAccessible` is written only when the function returns `OL_SUCCESS`.",
     "`olMemIsAccessible` is thread safe.",
-    "The result is a snapshot. Freeing the queried memory concurrently makes "
-    "it stale."
+    "The result is a snapshot."
   ];
   let params = [
-    Param<"ol_context_handle_t", "Context", "Optional context the memory was allocated in. NULL skips the allocation table lookup and queries only the backend.", PARAM_IN_OPTIONAL>,
+    Param<"ol_context_handle_t", "Context", "Context the memory was allocated in.", PARAM_IN_OPTIONAL>,
     Param<"ol_device_handle_t", "Device", "Device whose access is checked.", PARAM_IN>,
     Param<"const void*", "Ptr", "Start of the range to check.", PARAM_IN>,
     Param<"size_t", "Size", "Size in bytes of the range to check.", PARAM_IN>,
@@ -331,13 +322,13 @@ def olMemIsAccessible : Function {
   ];
   let returns = [
     Return<"OL_ERRC_INVALID_DEVICE", [
-      "`Context` is not NULL and `Device` does not belong to it."
+      "`Device` does not belong to `Context`"
     ]>,
     Return<"OL_ERRC_INVALID_ARGUMENT", [
-      "The backend rejects the range."
+      "The backend rejects the range"
     ]>,
     Return<"OL_ERRC_UNSUPPORTED", [
-      "The backend cannot determine whether `Device` can access the range."
+      "The backend cannot determine whether `Device` can access the range"
     ]>
   ];
 }
