@@ -296,25 +296,25 @@ def olMemIsAccessible : Function {
   let details = [
     "The range is [`Ptr`, `Ptr` + `Size`). Every byte of it must be directly "
     "accessible from `Device`.",
-    "`Device` must belong to `Context`.",
-    "The answer is reliable for memory allocated through liboffload and "
+    "`IsAccessible` is reliable for memory allocated through liboffload and "
     "queried with its owning `Context`. Host and managed allocations are "
     "accessible from every device of the context, device allocations from the "
     "device they were allocated on.",
-    "For any other pointer or range the answer is backend specific and may be "
-    "false even though the device can access the memory.",
-    "Passing NULL for `Context` is deprecated; the answer is then backend "
-    "specific.",
+    "For any other pointer or range `IsAccessible` is backend specific and may "
+    "be false even though the device can access the memory.",
+    "Passing NULL for `Context` is deprecated. The query then relies solely "
+    "on the backend. Otherwise `Device` must belong to `Context`.",
     "`Size` is not validated. The result for a zero-length range is "
     "unspecified: it may be false or fail with `OL_ERRC_INVALID_ARGUMENT`.",
     "`Ptr` is never dereferenced, no ownership of it is taken, and it need "
     "not remain valid after the call returns.",
     "`IsAccessible` is written only when the function returns `OL_SUCCESS`.",
     "`olMemIsAccessible` is thread safe.",
-    "The result is a snapshot."
+    "The result is a snapshot and becomes stale if the memory is freed "
+    "concurrently."
   ];
   let params = [
-    Param<"ol_context_handle_t", "Context", "Context the memory was allocated in.", PARAM_IN_OPTIONAL>,
+    Param<"ol_context_handle_t", "Context", "Context the memory was allocated in. Deprecated: may be NULL.", PARAM_IN_OPTIONAL>,
     Param<"ol_device_handle_t", "Device", "Device whose access is checked.", PARAM_IN>,
     Param<"const void*", "Ptr", "Start of the range to check.", PARAM_IN>,
     Param<"size_t", "Size", "Size in bytes of the range to check.", PARAM_IN>,
@@ -322,7 +322,7 @@ def olMemIsAccessible : Function {
   ];
   let returns = [
     Return<"OL_ERRC_INVALID_DEVICE", [
-      "`Device` does not belong to `Context`"
+      "`Context` is not NULL and `Device` does not belong to it"
     ]>,
     Return<"OL_ERRC_INVALID_ARGUMENT", [
       "The backend rejects the range"
