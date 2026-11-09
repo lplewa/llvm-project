@@ -109,7 +109,7 @@ TEST_P(olMemIsAccessibleTest, SuccessNotAccessibleHostMemory) {
   ASSERT_FALSE(IsAccessible);
 }
 
-// For a range not fully inside an allocation the answer is backend specific
+// For a range not fully inside a liboffload allocation the answer is backend specific
 // and may be false.
 TEST_P(olMemIsAccessibleTest, SuccessNotAccessibleBeyondAllocation) {
   void *Ptr = nullptr;
@@ -345,8 +345,8 @@ TEST_P(olMemIsAccessibleMultiDeviceTest, DeviceAllocationOwnerAndPeer) {
       olMemIsAccessible(Context, Devices[0], Ptr, 1024, &IsAccessible));
   ASSERT_TRUE(IsAccessible);
 
-  // The peer answer is backend specific, so it must match the answer obtained
-  // without a context.
+  // The peer answer is backend specific, so it must match the backend-only
+  // query made with a NULL Context.
   bool PeerAccessible = false;
   ASSERT_SUCCESS(
       olMemIsAccessible(Context, Devices[1], Ptr, 1024, &PeerAccessible));
