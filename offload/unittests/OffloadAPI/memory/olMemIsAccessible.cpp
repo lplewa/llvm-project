@@ -109,8 +109,8 @@ TEST_P(olMemIsAccessibleTest, SuccessNotAccessibleHostMemory) {
   ASSERT_FALSE(IsAccessible);
 }
 
-// For a range not fully inside a liboffload allocation the answer is backend specific
-// and may be false.
+// For a range not fully inside a liboffload allocation the answer is backend
+// specific and may be false.
 TEST_P(olMemIsAccessibleTest, SuccessNotAccessibleBeyondAllocation) {
   void *Ptr = nullptr;
   ASSERT_SUCCESS(olMemAlloc(Context, Device, OL_ALLOC_TYPE_DEVICE, 1024, &Ptr));

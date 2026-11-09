@@ -296,15 +296,15 @@ def olMemIsAccessible : Function {
   let details = [
     "The range is [`Ptr`, `Ptr` + `Size`). Every byte of it must be directly "
     "accessible from `Device`.",
-    "If `Context` is not NULL, `Device` must belong to it.",
+    "`Device` must belong to `Context`.",
     "The answer is reliable for memory allocated through liboffload and "
     "queried with its owning `Context`. Host and managed allocations are "
     "accessible from every device of the context, device allocations from the "
     "device they were allocated on.",
     "For any other pointer or range the answer is backend specific and may be "
     "false even though the device can access the memory.",
-    "Passing NULL for `Context` is deprecated. The query then relies solely on "
-    "the backend.",
+    "Passing NULL for `Context` is deprecated; the answer is then backend "
+    "specific.",
     "`Size` is not validated. The result for a zero-length range is "
     "unspecified: it may be false or fail with `OL_ERRC_INVALID_ARGUMENT`.",
     "`Ptr` is never dereferenced, no ownership of it is taken, and it need "
@@ -314,7 +314,7 @@ def olMemIsAccessible : Function {
     "The result is a snapshot."
   ];
   let params = [
-    Param<"ol_context_handle_t", "Context", "Context the memory was allocated in. NULL is deprecated.", PARAM_IN_OPTIONAL>,
+    Param<"ol_context_handle_t", "Context", "Context the memory was allocated in.", PARAM_IN_OPTIONAL>,
     Param<"ol_device_handle_t", "Device", "Device whose access is checked.", PARAM_IN>,
     Param<"const void*", "Ptr", "Start of the range to check.", PARAM_IN>,
     Param<"size_t", "Size", "Size in bytes of the range to check.", PARAM_IN>,
@@ -322,7 +322,7 @@ def olMemIsAccessible : Function {
   ];
   let returns = [
     Return<"OL_ERRC_INVALID_DEVICE", [
-      "`Context` is not NULL and `Device` does not belong to it"
+      "`Device` does not belong to `Context`"
     ]>,
     Return<"OL_ERRC_INVALID_ARGUMENT", [
       "The backend rejects the range"
